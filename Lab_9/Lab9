@@ -1,0 +1,195 @@
+-- Таблица film (фильмы)
+CREATE TABLE film (
+    film_id SERIAL PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    release_year INTEGER,
+    rental_rate NUMERIC(4,2),
+    rating VARCHAR(10)
+);
+
+-- Таблица customer (клиенты)
+CREATE TABLE customer (
+    customer_id SERIAL PRIMARY KEY,
+    first_name VARCHAR(50),
+    last_name VARCHAR(50)
+);
+
+-- Таблица inventory (инвентарь)
+CREATE TABLE inventory (
+    inventory_id SERIAL PRIMARY KEY,
+    film_id INTEGER REFERENCES film(film_id)
+);
+
+-- Таблица rental (аренды)
+CREATE TABLE rental (
+    rental_id SERIAL PRIMARY KEY,
+    rental_date DATE,
+    return_date DATE,
+    customer_id INTEGER REFERENCES customer(customer_id),
+    inventory_id INTEGER REFERENCES inventory(inventory_id)
+);
+-- Фильмы (5 записей)
+INSERT INTO film (title, release_year, rental_rate, rating) VALUES
+('The Matrix', 1999, 3.99, 'R'),
+('Inception', 2010, 4.99, 'PG-13'),
+('Alien', 1979, 2.99, 'R'),
+('Amadeus', 1984, 3.49, 'PG'),
+('American Beauty', 1999, 2.99, 'R');
+
+-- Клиенты (3 записи)
+INSERT INTO customer (first_name, last_name) VALUES
+('John', 'Smith'),
+('Maria', 'Garcia'),
+('David', 'Johnson');
+
+-- Инвентарь (5 записей)
+INSERT INTO inventory (film_id) VALUES
+(1), (2), (3), (4), (5);
+
+-- Аренды (5 записей)
+INSERT INTO rental (rental_date, return_date, customer_id, inventory_id) VALUES
+('2024-01-15', '2024-01-18', 1, 1),
+('2024-01-16', '2024-01-19', 1, 2),
+('2024-01-20', '2024-01-23', 2, 3),
+('2024-02-01', '2024-02-04', 2, 4),
+('2024-02-10', NULL, 3, 5);
+
+
+--Exercise 1.1: Simple Calculation Function
+
+CREATE OR REPLACE FUNCTION calculate_discount(
+    original_price NUMERIC,
+    discount_percent NUMERIC
+)
+RETURNS NUMERIC AS $$
+BEGIN
+    RETURN original_price - (original_price * discount_percent / 100);
+END;
+$$ LANGUAGE plpgsql;
+
+-- Тест 1: 100 - 15% = 85
+SELECT calculate_discount(100, 15); 
+
+-- Тест 2: 250.50 - 20% = 200.40
+SELECT calculate_discount(250.50, 20);
+
+
+
+--Task 2: Working with OUT Parameters (4 minutes)
+CREATE OR REPLACE FUNCTION film_stats(
+  IN p_rating VARCHAR,  -- Убрал (10)
+  OUT total_films INT,
+  OUT avg_rental_rate NUMERIC
+)
+AS $$
+BEGIN
+  SELECT COUNT(*), AVG(rental_rate)
+  INTO total_films, avg_rental_rate
+  FROM film WHERE rating = p_rating;
+END;
+$$ LANGUAGE plpgsql;
+
+SELECT * FROM film_stats('PG');
+SELECT * FROM film_stats('R');
+
+
+
+--Exercise 3.1: Customer Rental History
+
+CREATE OR REPLACE FUNCTION get_customer_rentals(p_customer_id INTEGER)
+RETURNS TABLE(
+  rental_date DATE,
+  film_title VARCHAR,
+  return_date DATE
+) 
+AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        r.rental_date::DATE,
+        f.title::VARCHAR,
+        r.return_date::DATE
+    FROM rental r 
+    INNER JOIN inventory i ON r.inventory_id = i.inventory_id
+    INNER JOIN film f ON i.film_id = f.film_id
+    WHERE r.customer_id = p_customer_id
+    ORDER BY r.rental_date DESC;
+END;
+$$ LANGUAGE plpgsql;
+
+SELECT * FROM get_customer_rentals(1);
+SELECT * FROM get_customer_rentals(5) LIMIT 5;
+
+
+
+
+--Exercise 4.1: Overloaded Film Search
+
+--Перегрузка функций - это возможность создать несколько функций с одинаковым именем, 
+-- но разными параметрами. 
+-- PostgreSQL автоматически выбирает нужную версию функции на основе переданных аргументов.
+--verision 1
+CREATE OR REPLACE FUNCTION search_films(p_title_pattern VARCHAR)
+RETURNS TABLE(
+    title VARCHAR,
+    release_year INTEGER
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        f.title::VARCHAR,
+        f.release_year::INTEGER
+    FROM 
+        film f
+    WHERE 
+        f.title ILIKE p_title_pattern
+    ORDER BY 
+        f.title;
+END;
+$$ LANGUAGE plpgsql;
+
+
+
+--verision 2
+CREATE OR REPLACE FUNCTION search_films(
+    p_title_pattern VARCHAR, 
+    p_rating VARCHAR
+)
+RETURNS TABLE(
+    title VARCHAR,
+    release_year INTEGER,
+    rating VARCHAR
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        f.title::VARCHAR,
+        f.release_year::INTEGER,
+        f.rating::VARCHAR
+    FROM 
+        film f
+    WHERE 
+        f.title ILIKE p_title_pattern
+        AND f.rating = p_rating
+    ORDER BY 
+        f.title;
+END;
+$$ LANGUAGE plpgsql;
+SELECT * FROM search_films('A%');
+SELECT * FROM search_films('A%', 'PG');
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
